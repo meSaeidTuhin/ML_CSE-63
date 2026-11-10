@@ -1,0 +1,203 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{url}
+\usepackage{balance}
+\usepackage{tabularx}
+\usepackage{makecell}
+\graphicspath{{figures/}}
+
+\title{Comparative Analysis of Machine Learning Algorithms for Dengue Outcome Prediction Using Clinical and Demographic Features in Dhaka, Bangladesh}
+
+\author{\IEEEauthorblockN{Abu Sayed Tuhin}
+\IEEEauthorblockA{Department of Computer Science and Engineering\\
+State University of Bangladesh\\
+Dhaka, Bangladesh}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Dengue fever is a significant public health concern, creating a need for reliable data-driven approaches to support the analysis of dengue-related outcomes. This study presents a comparative evaluation of ten machine learning classification algorithms using a dengue dataset from Bangladesh containing 1,000 records and 19 attributes. Following exploratory data analysis, preprocessing, and an 80:20 stratified train-test split, feature selection was incorporated into the modeling pipelines to reduce the input feature space. The models were evaluated using five-fold stratified cross-validation and an independent test set with multiple performance metrics. AdaBoost achieved the highest test accuracy of 98.5\%, with a macro F1-score of 0.9849, ROC-AUC of 0.9997, and PR-AUC of 0.9997. Support Vector Machine achieved the highest cross-validation macro F1-score of 0.9812 $\pm$ 0.0069. Permutation importance identified platelet count, rash, joint pain, and retro-orbital pain among the most influential features for AdaBoost. McNemar's exact tests did not identify statistically significant differences between AdaBoost and the other two leading test-set models. These findings demonstrate strong predictive performance on the available dataset; however, the unknown provenance of the outcome labels and the limited dataset size mean that further external validation is necessary before any clinical application.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Dengue prediction, machine learning, classification, feature selection, AdaBoost, cross-validation, permutation importance.
+\end{IEEEkeywords}
+
+\section{Introduction}
+Dengue is a mosquito-borne viral disease and an increasingly important public-health challenge in tropical and subtropical regions. The World Health Organization (WHO) reported approximately 14.6 million dengue cases worldwide in 2024, the highest annual total reported to date \cite{who_dengue_fact}. WHO emphasizes that dengue burden is likely undercounted because many infections are asymptomatic or managed outside formal health systems. Bangladesh has experienced recurrent and geographically expanding outbreaks. A systematic review of dengue in Bangladesh from 2000 to 2024 documented substantial changes in outbreak magnitude, seasonality, clinical manifestations, and circulating serotypes \cite{sharif2024bangladesh}. Recent studies have also investigated machine-learning methods for patient-level dengue prediction and outbreak forecasting in Bangladesh \cite{bhuiyan2025early,eco2025bangladesh}.
+
+Machine-learning classifiers can identify multivariate patterns in clinical and demographic observations. However, apparently strong performance in small datasets can be caused by target leakage, unclear label construction, or overly optimistic model selection. In particular, diagnostic markers may be closely related to the process used to assign the target label. WHO guidance describes the diagnostic role of NS1 antigen and antibody tests, and notes that the appropriate test depends on the time since symptom onset and clinical context \cite{who_lab2025}. Accordingly, model evaluation should distinguish predictive performance on a supplied dataset from demonstrated clinical validity.
+
+This study compares ten classification algorithms across several model families using a publicly available Bangladesh dengue dataset containing 1,000 records and 19 attributes \cite{kaggle_dengue}. The main contributions are: (1) a comparative evaluation of ten classifiers using a consistent preprocessing and feature-selection pipeline; (2) evaluation using stratified cross-validation and a held-out test set with multiple classification metrics; and (3) model interpretation, error inspection, and paired statistical comparison of leading classifiers. The analysis is intentionally framed as an empirical dataset study rather than a validated clinical diagnostic system.
+
+\section{Dataset and Methodology}
+\subsection{Dataset Description}
+The dataset was obtained from the Kaggle collection titled \emph{Dengue Dataset Bangladesh}, published by Kawsar Ahmad \cite{kaggle_dengue}. It contains 1,000 observations and 19 attributes, including demographic information, symptoms, clinical measurements, diagnostic markers, and a binary outcome field. The outcome distribution is 467 records in class 0 and 533 records in class 1. The exact operational rule used to assign the outcome labels is not sufficiently specified in the available dataset metadata. This uncertainty is important when interpreting predictive performance.
+
+\subsection{Exploratory Data Analysis}
+The initial inspection found no missing values or duplicate rows. The District field contained only the value Dhaka and therefore provided no variation for classification. Exploratory plots were produced to inspect the outcome distribution, numerical feature distributions, pairwise numerical correlations, and the relationship between platelet count and body temperature. The class distribution was close to balanced, reducing the need for class rebalancing in the primary experiment.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{target_distribution.png}
+\caption{Distribution of the outcome classes in the held-out test partition.}
+\label{fig:target}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{eda_histograms.png}
+\caption{Distributions of selected numerical features.}
+\label{fig:hist}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{eda_correlation_heatmap.png}
+\caption{Correlation heatmap for numerical attributes.}
+\label{fig:corr}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{eda_platelet_temperature.png}
+\caption{Platelet count versus body temperature, colored by outcome class.}
+\label{fig:scatter}
+\end{figure}
+
+\subsection{Preprocessing and Feature Selection}
+The constant District attribute was removed. NS1, IgG, and IgM were also excluded from the primary modeling features because of their very strong associations with the outcome in this dataset. In particular, all observations with NS1 equal to one belonged to outcome class 1. These exclusions were a precaution against models exploiting potentially target-proximal diagnostic information; they do not establish that confirmed target leakage occurred. The remaining 14 predictors comprised nine numerical and five categorical variables.
+
+The data were divided into training and test partitions using an 80:20 stratified split with random state 42, yielding 800 training and 200 test observations. Numerical variables were imputed using the training-fold median and standardized. Categorical variables were imputed using the most frequent training-fold value and one-hot encoded. One-hot encoding produced 55 columns before feature selection. SelectKBest with the ANOVA F-test retained 20 transformed features. Imputation, scaling, encoding, and feature selection were implemented within the model pipelines so that their parameters were learned only from the corresponding training partition or cross-validation fold. The use of ANOVA F-scores for univariate feature selection follows standard feature-selection practice \cite{guyon2003feature}.
+
+An interquartile-range (IQR) check on the training data identified 10 platelet-count observations and 12 white-blood-cell-count observations outside the conventional 1.5-IQR bounds. These observations were retained because extreme clinical measurements may be meaningful and should not automatically be treated as data errors. IQR thresholds are statistical screening bounds, not clinical reference intervals.
+
+\subsection{Classification Algorithms}
+Ten classifiers were evaluated: Logistic Regression, K-Nearest Neighbors (KNN), Gaussian Naive Bayes, Support Vector Machine (SVM), Decision Tree, Random Forest, Extra Trees, AdaBoost, Gradient Boosting, and Multi-Layer Perceptron (MLP). These methods span linear, instance-based, probabilistic, kernel-based, tree-based, bagging, boosting, and neural-network approaches. The model families are grounded in established work on nearest-neighbor classification \cite{cover1967nearest}, support-vector machines \cite{cortes1995svm}, random forests \cite{breiman2001rf}, boosting \cite{freund1997boosting,friedman2001gbm}, and extremely randomized trees \cite{geurts2006extratrees}. A Dummy Classifier was also evaluated as a simple baseline.
+
+\subsection{Hyperparameter Tuning and Validation}
+Hyperparameters were selected using RandomizedSearchCV with eight sampled configurations per model, five-fold stratified cross-validation, and macro F1 as the optimization metric. The selected estimators were subsequently evaluated using five-fold stratified cross-validation on the training partition. Because hyperparameter selection and the reported cross-validation evaluation use the same training dataset, these cross-validation values are descriptive and may be optimistic; nested cross-validation would provide a less biased estimate of the full model-selection procedure \cite{varma2006cv,cawley2010overfit}. The independent 200-observation test partition was not used for model selection and is the primary held-out evaluation reported here.
+
+\subsection{Evaluation Metrics and Interpretation}
+The test-set metrics include accuracy, macro precision, macro recall, macro F1, weighted F1, Matthews correlation coefficient (MCC), area under the receiver-operating-characteristic curve (ROC-AUC), and area under the precision-recall curve (PR-AUC). ROC analysis is a standard way to visualize discrimination across thresholds \cite{fawcett2006roc}; PR-AUC provides complementary information about positive-class precision and recall \cite{saito2015pr}. Confusion matrices were inspected for the three strongest test-set models. Permutation feature importance was calculated for AdaBoost using macro F1 as the scoring function and ten repeats. Permutation importance measures the effect of disrupting a feature on the fitted model's score; it does not establish causal or clinical importance.
+
+McNemar's exact test was used to compare paired test-set classification outcomes for AdaBoost versus Extra Trees and AdaBoost versus Logistic Regression. The test evaluates discordant paired predictions rather than treating the two model accuracies as independent proportions \cite{mcnemar1947}. A significance threshold of $\alpha=0.05$ was used.
+
+\section{Experimental Results and Discussion}
+\subsection{Test-Set Performance}
+Table~\ref{tab:test} summarizes the held-out test-set results. AdaBoost achieved the highest accuracy (98.5\%), macro F1 (0.9849), MCC (0.9699), ROC-AUC (0.9997), and PR-AUC (0.9997). Extra Trees, Logistic Regression, MLP, and Random Forest each achieved 98.0\% accuracy. Gradient Boosting, SVM, and KNN each achieved 97.5\% accuracy. The Decision Tree and Gaussian Naive Bayes models achieved lower accuracies of 94.5\% and 89.0\%, respectively. The Dummy Classifier achieved 53.5\% accuracy.
+
+\begin{table*}[t]
+\centering
+\caption{Held-out test-set classification performance.}
+\label{tab:test}
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrrrrr}
+\toprule
+Model & Acc. & Macro Prec. & Macro Rec. & Macro F1 & Weighted F1 & MCC & ROC-AUC & PR-AUC\\
+\midrule
+AdaBoost & 0.985 & 0.9853 & 0.9846 & 0.9849 & 0.9850 & 0.9699 & 0.9997 & 0.9997\\
+Extra Trees & 0.980 & 0.9807 & 0.9792 & 0.9799 & 0.9800 & 0.9599 & 0.9973 & 0.9978\\
+Logistic Regression & 0.980 & 0.9807 & 0.9792 & 0.9799 & 0.9800 & 0.9599 & 0.9991 & 0.9992\\
+MLP & 0.980 & 0.9807 & 0.9792 & 0.9799 & 0.9800 & 0.9599 & 0.9983 & 0.9986\\
+Random Forest & 0.980 & 0.9807 & 0.9792 & 0.9799 & 0.9800 & 0.9599 & 0.9988 & 0.9990\\
+Gradient Boosting & 0.975 & 0.9746 & 0.9752 & 0.9749 & 0.9750 & 0.9498 & 0.9988 & 0.9989\\
+SVM & 0.975 & 0.9752 & 0.9745 & 0.9749 & 0.9750 & 0.9498 & 0.9989 & 0.9991\\
+KNN & 0.975 & 0.9763 & 0.9738 & 0.9748 & 0.9750 & 0.9501 & 0.9981 & 0.9983\\
+Decision Tree & 0.945 & 0.9443 & 0.9458 & 0.9448 & 0.9450 & 0.8901 & 0.9458 & 0.9336\\
+Gaussian Naive Bayes & 0.890 & 0.8955 & 0.8859 & 0.8884 & 0.8893 & 0.7814 & 0.9374 & 0.9292\\
+Dummy Classifier & 0.535 & 0.2675 & 0.5000 & 0.3485 & 0.3729 & 0.0000 & 0.5000 & 0.5350\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{Cross-Validation Results}
+Table~\ref{tab:cv} presents the five-fold cross-validation macro F1 results. SVM obtained the highest mean score (0.9812 $\pm$ 0.0069), followed by Logistic Regression (0.9799 $\pm$ 0.0092). This differs from the held-out test ranking, where AdaBoost achieved the highest score. Such differences can occur because the training folds and held-out test set contain different samples. The cross-validation results should be interpreted with the model-selection caveat described in Section II-E.
+
+\begin{table}[t]
+\centering
+\caption{Five-fold cross-validation macro F1 on the training partition.}
+\label{tab:cv}
+\scriptsize
+\begin{tabular}{lrr}
+\toprule
+Model & Mean Macro F1 & Std. Dev.\\
+\midrule
+SVM & 0.9812 & 0.0069\\
+Logistic Regression & 0.9799 & 0.0092\\
+KNN & 0.9774 & 0.0116\\
+Gradient Boosting & 0.9774 & 0.0094\\
+Random Forest & 0.9761 & 0.0128\\
+MLP & 0.9749 & 0.0119\\
+AdaBoost & 0.9749 & 0.0143\\
+Extra Trees & 0.9698 & 0.0166\\
+Decision Tree & 0.9385 & 0.0048\\
+Gaussian Naive Bayes & 0.9145 & 0.0288\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{ROC and Confusion-Matrix Analysis}
+Fig.~\ref{fig:roc} shows the ROC curves for the evaluated models. The leading models produced ROC-AUC values close to one on this test partition. The curve and metric values indicate strong separation of the two dataset outcome classes, but do not independently establish clinical validity or generalization to other populations.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{roc_curves.png}
+\caption{ROC curves for the evaluated classifiers on the held-out test set.}
+\label{fig:roc}
+\end{figure}
+
+The confusion matrices for AdaBoost, Extra Trees, and Logistic Regression are shown in Fig.~\ref{fig:cm}. AdaBoost correctly classified 197 of 200 test observations, with 91 true negatives, 106 true positives, two false positives, and one false negative. Extra Trees and Logistic Regression each correctly classified 196 observations, with 90 true negatives, 106 true positives, three false positives, and one false negative.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{confusion_matrices.png}
+\caption{Confusion matrices for the three leading models on the test set.}
+\label{fig:cm}
+\end{figure}
+
+\subsection{Permutation Feature Importance}
+Fig.~\ref{fig:importance} presents AdaBoost permutation importance. Platelet count had the largest estimated importance (0.0730), followed by rash (0.0442), joint pain (0.0423), retro-orbital pain (0.0397), and fever duration (0.0246). Myalgia, WBC count, and headache had smaller positive importance estimates. Body temperature had a near-zero estimate, while the remaining categorical/demographic variables had zero measured importance under this permutation procedure. These values describe the fitted model's reliance on the available features and should not be interpreted as causal effects or clinical rankings.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{adaboost_feature_importance.png}
+\caption{AdaBoost permutation feature importance measured using macro F1.}
+\label{fig:importance}
+\end{figure}
+
+\subsection{Error Analysis and Statistical Comparison}
+AdaBoost made three test-set errors: one false negative and two false positives. The false-negative record had a platelet count of 211,000 and a reported fever duration of two days, while both false-positive records had different combinations of platelet count, fever duration, and symptoms. These individual examples illustrate that errors occurred across heterogeneous feature profiles; they are not sufficient to infer a general clinical failure pattern.
+
+McNemar's exact test found no statistically significant difference between AdaBoost and Extra Trees ($b=2$, $c=1$, $p=1.0$), or between AdaBoost and Logistic Regression ($b=1$, $c=0$, $p=1.0$). At the 0.05 significance level, the tests therefore did not provide evidence of a difference in paired test-set errors. This result does not prove that the models are equivalent, particularly given the small number of discordant predictions.
+
+\subsection{Discussion and Limitations}
+The experiment shows that multiple model families achieved high scores on this dataset after exclusion of the highly outcome-associated diagnostic markers. AdaBoost led on the held-out test metrics, while SVM led on the reported cross-validation mean. The close performance of several models and the small number of test errors suggest that the 200-observation test set provides limited resolution for distinguishing among the strongest classifiers.
+
+Several limitations restrict the interpretation. First, the dataset has only 1,000 records and all District values are Dhaka, limiting geographic diversity. Second, the target-label construction process is not sufficiently documented in the accessible metadata. Third, the very high ROC-AUC and PR-AUC values warrant caution and should be independently replicated. Fourth, the cross-validation scores were calculated after hyperparameter selection using the same training data, which may introduce selection optimism. Finally, the experiment does not include external validation, prospective evaluation, calibration assessment, or clinical utility analysis. The models should therefore be regarded as research classifiers for this dataset, not as diagnostic tools for patient care.
+
+\section{Conclusion and Future Work}
+This study compared ten machine-learning classifiers for predicting dengue-related outcomes using a 1,000-record dataset from Bangladesh. The workflow included exploratory analysis, preprocessing, feature selection, hyperparameter tuning, five-fold stratified cross-validation, and held-out test evaluation. NS1, IgG, and IgM were excluded from the primary experiments because of their strong associations with the outcome label, while the constant District field was removed.
+
+AdaBoost achieved the highest test accuracy of 98.5\%, macro F1-score of 0.9849, and ROC-AUC of 0.9997. SVM achieved the highest mean cross-validation macro F1-score of 0.9812 $\pm$ 0.0069. McNemar's exact tests did not identify statistically significant differences between AdaBoost and the other two leading test-set models. Permutation importance identified platelet count, rash, joint pain, and retro-orbital pain among the features most influential to AdaBoost predictions. These results suggest that the selected features contain predictive information within this dataset.
+
+Future work should use larger, independently collected datasets from multiple hospitals and geographic regions. The outcome-labeling procedure should be documented and validated against appropriate diagnostic criteria. Nested cross-validation and external validation are needed to provide more reliable estimates of model-selection performance and generalizability. Further studies should also assess probability calibration, decision-curve analysis, fairness across demographic groups, and model explainability. Until rigorous external and prospective validation is completed, these models should not be used as clinical diagnostic systems.
+
+\section*{AI Use Disclosure}
+Generative AI tools were used to assist with language editing, organization of the manuscript, and preparation of the LaTeX source. The author reviewed the manuscript and is responsible for verifying the dataset, experimental code, reported results, interpretations, and final submitted version.
+
+\section*{Code and Data Availability}
+The dataset is publicly available through the Kaggle dataset page cited in this paper. The source-code repository URL should be added by the author before submission if a public GitHub repository is created. The figures included in this project were exported from the author's Google Colab notebook.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+\balance
+\end{document}
